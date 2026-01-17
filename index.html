@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業電工線徑與管徑規劃系統 (V3.0 完整版)</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #007bff;
+            --accent: #dc3545;
+            --success: #28a745;
+            --bg: #f4f6f9;
+        }
+
+        body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        
+        h1, h2 { text-align: center; color: var(--primary); }
+        h1 { font-size: 1.8rem; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #666; font-size: 0.9rem; margin-bottom: 25px; }
+
+        .tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; }
+        .tab { flex: 1; padding: 15px; cursor: pointer; text-align: center; font-weight: bold; color: #777; transition: 0.3s; background: #fafafa; }
+        .tab.active { color: var(--secondary); border-bottom: 3px solid var(--secondary); background: #fff; }
+
+        .panel { display: none; animation: fadeIn 0.4s; }
+        .panel.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
+        
+        .highlight-box { background: #eef6fc; padding: 15px; border-radius: 8px; border-left: 5px solid var(--secondary); margin-bottom: 20px; }
+        
+        button.btn-calc { width: 100%; padding: 15px; background: var(--secondary); color: white; border: none; border-radius: 6px; font-size: 1.1rem; cursor: pointer; transition: 0.2s; font-weight: bold; }
+        button.btn-calc:hover { background: #0056b3; }
+
+        .result-card { margin-top: 20px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; display: none; }
+        .result-header { background: var(--primary); color: white; padding: 15px; font-weight: bold; display: flex; justify-content: space-between; }
+        .result-body { padding: 20px; }
+        .result-row { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px dashed #eee; padding-bottom: 10px; }
+        .result-row:last-child { border: none; }
+        
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; color: white; }
+        .bg-ok { background: var(--success); }
+        .bg-warn { background: var(--accent); }
+
+        .wire-input-list { margin-bottom: 15px; border: 1px solid #eee; padding: 10px; border-radius: 6px; }
+        .wire-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .wire-row select { flex: 2; }
+        .wire-row input { flex: 1; }
+        .add-btn { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>⚡ 專業電工線徑與管徑規劃</h1>
+    <p class="subtitle">V3.0 完整版 | 支援 XLPE/HR/FR 與 各式配管計算</p>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('wire-sizing')">1. 依 NFB 選線徑</div>
+        <div class="tab" onclick="switchTab('conduit-sizing')">2. 管徑自動計算</div>
+    </div>
+
+    <div id="wire-sizing" class="panel active">
+        
+        <div class="highlight-box">
+            <label style="font-size: 1.1rem; color: var(--primary);">設定無熔絲開關容量 (AT):</label>
+            <input type="number" id="breaker-at" placeholder="例如: 50, 100, 400..." style="font-size: 1.2rem; font-weight: bold;">
+            <small style="color: #555; display:block; margin-top:5px;">※ 系統將依此數值決定主線徑 (>200mm² 自動並聯)。</small>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>導線配置方式 (線種):</label>
+                <select id="wire-type">
+                    <option value="pvc_core">1. PVC 單芯電線 (60°C)</option>
+                    <option value="pvc_cable">2. PVC 電纜線 (60°C)</option>
+                    <option value="xlpe">3. XLPE 電線 (90°C)</option>
+                    <option value="hr">4. HR 耐熱電線 (90°C)</option>
+                    <option value="fr">5. FR 耐燃電線 (視為高規)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>新增配管方式 (敷設環境):</label>
+                <select id="install-method">
+                    <option value="pvc_pipe">1. PVC 配管 (散熱較差)</option>
+                    <option value="metal_pipe">2. 金屬管 配管 (散熱較好)</option>
+                    <option value="tray">3. 電纜線架 (通風良好)</option>
+                    <option value="trunking">4. 電纜線槽 (Wireway)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>系統電壓 (Volts):</label>
+                <select id="voltage">
+                    <option value="110">110V (單相二線)</option>
+                    <option value="220" selected>220V (單相/三相)</option>
+                    <option value="380">380V (三相)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>單程線路長度 (公尺):</label>
+                <input type="number" id="wire-length" value="10" placeholder="配電盤到負載端的距離">
+            </div>
+        </div>
+
+        <button class="btn-calc" onclick="calculateWireSize()">計算建議主線與接地線</button>
+
+        <div id="wire-result" class="result-card">
+            <div class="result-header">
+                <span>規劃建議書</span>
+                <span id="wire-status-badge" class="badge bg-ok">計算完成</span>
+            </div>
+            <div class="result-body">
+                <div class="result-row">
+                    <span>⚡ 建議主線徑：</span>
+                    <strong id="res-main-wire" style="font-size: 1.2rem; color: var(--secondary);">--</strong>
+                </div>
+                <div class="result-row">
+                    <span>🔄 迴路配置：</span>
+                    <strong id="res-wire-sets" style="color: #333;">--</strong>
+                </div>
+                <div class="result-row">
+                    <span>🛡️ 建議接地線徑：</span>
+                    <strong id="res-ground-wire" style="color: #28a745;">--</strong>
+                </div>
+                <div class="result-row">
+                    <span>🔌 導線安培容量：</span>
+                    <span id="res-amp-check">--</span>
+                </div>
+                <div class="result-row">
+                    <span>📉 壓降估算：</span>
+                    <span id="res-voltage-drop">--</span>
+                </div>
+                <div id="upsize-msg" style="color: var(--accent); font-weight: bold; margin-top: 10px; display: none; background: #fff3cd; padding: 10px; border-radius: 5px;">
+                    ⚠️ 注意：因壓降過大，系統已自動將線徑加大一級。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="conduit-sizing" class="panel">
+        <div class="highlight-box">
+            <p style="margin:0;">請輸入要穿入管內的電線數量，系統將自動計算是否符合 40% 佔積率規定。</p>
+        </div>
+
+        <div id="wire-list-container"></div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button type="button" class="add-btn" onclick="addWireRow()">+ 增加主電線</button>
+            <button type="button" class="add-btn" style="background:#6c757d" onclick="addGroundRow()">+ 加入接地線</button>
+        </div>
+
+        <br><br>
+        <button class="btn-calc" onclick="calculateConduitSize()">計算建議管徑 (PVC & 金屬)</button>
+
+        <div id="conduit-result" class="result-card">
+            <div class="result-header">
+                <span>建議管徑方案</span>
+                <span class="badge bg-ok">佔積率 40% 基準</span>
+            </div>
+            <div class="result-body">
+                <div class="result-row">
+                    <span>導線總截面積 (含皮)：</span>
+                    <strong id="res-total-area">-- mm²</strong>
+                </div>
+                <div class="result-row" style="background: #fff3cd; padding: 8px;">
+                    <span>🟠 建議 PVC 配管：</span>
+                    <strong id="res-pvc-pipe" style="font-size: 1.3rem; color: #d35400;">--</strong>
+                </div>
+                <div class="result-row" style="background: #d4edda; padding: 8px;">
+                    <span>⚪ 建議 金屬管/線槽：</span>
+                    <strong id="res-metal-pipe" style="font-size: 1.3rem; color: #155724;">--</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ==========================================
+    // 1. 資料庫 (擴充：區分 PVC 60度 與 XLPE 90度 之載流量)
+    // ==========================================
+    // 數據結構說明：
+    // pvc_amps: { pvc_pipe: PVC管內, metal: 金屬管/線槽, tray: 線架/礙子 }
+    // xlpe_amps: { pvc_pipe: PVC管內, metal: 金屬管/線槽, tray: 線架/礙子 }
+    // 註：XLPE/HR/FR 共用 xlpe_amps (高耐熱)，PVC單芯/電纜 共用 pvc_amps
+    
+    const wireData = [
+        { size: 1.6, label: "1.6mm", R: 8.9, outer_area: 10, 
+          pvc_amps: { pvc_pipe: 15, metal: 15, tray: 15 }, 
+          xlpe_amps: { pvc_pipe: 20, metal: 20, tray: 25 } },
+          
+        { size: 2.0, label: "2.0mm", R: 5.6, outer_area: 12, 
+          pvc_amps: { pvc_pipe: 20, metal: 20, tray: 20 }, 
+          xlpe_amps: { pvc_pipe: 30, metal: 30, tray: 35 } },
+
+        { size: 3.5, label: "3.5mm²", R: 6.0, outer_area: 16, 
+          pvc_amps: { pvc_pipe: 20, metal: 20, tray: 30 }, 
+          xlpe_amps: { pvc_pipe: 30, metal: 35, tray: 40 } },
+
+        { size: 5.5, label: "5.5mm²", R: 3.8, outer_area: 20, 
+          pvc_amps: { pvc_pipe: 25, metal: 30, tray: 40 }, 
+          xlpe_amps: { pvc_pipe: 40, metal: 45, tray: 55 } },
+
+        { size: 8, label: "8mm²", R: 2.6, outer_area: 28, 
+          pvc_amps: { pvc_pipe: 33, metal: 40, tray: 55 }, 
+          xlpe_amps: { pvc_pipe: 50, metal: 55, tray: 70 } },
+
+        { size: 14, label: "14mm²", R: 1.5, outer_area: 45, 
+          pvc_amps: { pvc_pipe: 50, metal: 55, tray: 75 }, 
+          xlpe_amps: { pvc_pipe: 75, metal: 80, tray: 95 } },
+
+        { size: 22, label: "22mm²", R: 0.96, outer_area: 70, 
+          pvc_amps: { pvc_pipe: 60, metal: 70, tray: 95 }, 
+          xlpe_amps: { pvc_pipe: 95, metal: 105, tray: 125 } },
+
+        { size: 30, label: "30mm²", R: 0.70, outer_area: 90, 
+          pvc_amps: { pvc_pipe: 75, metal: 85, tray: 115 }, 
+          xlpe_amps: { pvc_pipe: 110, metal: 125, tray: 150 } },
+
+        { size: 38, label: "38mm²", R: 0.56, outer_area: 110, 
+          pvc_amps: { pvc_pipe: 85, metal: 100, tray: 130 }, 
+          xlpe_amps: { pvc_pipe: 130, metal: 145, tray: 175 } },
+
+        { size: 50, label: "50mm²", R: 0.43, outer_area: 140, 
+          pvc_amps: { pvc_pipe: 100, metal: 115, tray: 160 }, 
+          xlpe_amps: { pvc_pipe: 150, metal: 170, tray: 205 } },
+
+        { size: 60, label: "60mm²", R: 0.35, outer_area: 165, 
+          pvc_amps: { pvc_pipe: 115, metal: 135, tray: 185 }, 
+          xlpe_amps: { pvc_pipe: 170, metal: 195, tray: 235 } },
+
+        { size: 80, label: "80mm²", R: 0.27, outer_area: 200, 
+          pvc_amps: { pvc_pipe: 135, metal: 160, tray: 215 }, 
+          xlpe_amps: { pvc_pipe: 200, metal: 230, tray: 275 } },
+
+        { size: 100, label: "100mm²", R: 0.21, outer_area: 240, 
+          pvc_amps: { pvc_pipe: 160, metal: 185, tray: 250 }, 
+          xlpe_amps: { pvc_pipe: 240, metal: 270, tray: 325 } },
+
+        { size: 125, label: "125mm²", R: 0.17, outer_area: 280, 
+          pvc_amps: { pvc_pipe: 190, metal: 215, tray: 290 }, 
+          xlpe_amps: { pvc_pipe: 280, metal: 315, tray: 380 } },
+
+        { size: 150, label: "150mm²", R: 0.14, outer_area: 330, 
+          pvc_amps: { pvc_pipe: 215, metal: 245, tray: 325 }, 
+          xlpe_amps: { pvc_pipe: 315, metal: 360, tray: 430 } },
+
+        { size: 200, label: "200mm²", R: 0.11, outer_area: 410, 
+          pvc_amps: { pvc_pipe: 260, metal: 295, tray: 400 }, 
+          xlpe_amps: { pvc_pipe: 380, metal: 430, tray: 520 } },
+          
+        { size: 250, label: "250mm²", R: 0.09, outer_area: 500, 
+          pvc_amps: { pvc_pipe: 300, metal: 340, tray: 460 }, 
+          xlpe_amps: { pvc_pipe: 440, metal: 500, tray: 600 } },
+          
+        { size: 325, label: "325mm²", R: 0.07, outer_area: 630, 
+          pvc_amps: { pvc_pipe: 350, metal: 400, tray: 540 }, 
+          xlpe_amps: { pvc_pipe: 520, metal: 590, tray: 700 } },
+          
+        { size: 400, label: "400mm²", R: 0.06, outer_area: 760, 
+          pvc_amps: { pvc_pipe: 400, metal: 450, tray: 600 }, 
+          xlpe_amps: { pvc_pipe: 600, metal: 680, tray: 800 } },
+          
+        { size: 500, label: "500mm²", R: 0.05, outer_area: 950, 
+          pvc_amps: { pvc_pipe: 450, metal: 520, tray: 700 }, 
+          xlpe_amps: { pvc_pipe: 700, metal: 780, tray: 900 } }
+    ];
+
+    const groundingTable = [
+        { breakerAt: 20, groundSize: "1.6mm" }, { breakerAt: 30, groundSize: "2.0mm" }, 
+        { breakerAt: 40, groundSize: "5.5mm²" }, { breakerAt: 60, groundSize: "5.5mm²" },
+        { breakerAt: 100, groundSize: "8mm²" }, { breakerAt: 200, groundSize: "14mm²" },
+        { breakerAt: 300, groundSize: "22mm²" }, { breakerAt: 400, groundSize: "30mm²" }, 
+        { breakerAt: 500, groundSize: "38mm²" }, { breakerAt: 600, groundSize: "50mm²" },
+        { breakerAt: 800, groundSize: "60mm²" }
+    ];
+
+    const pipeSpecs = [
+        { name: '1/2" (16mm)', maxArea: 100 }, { name: '3/4" (20mm)', maxArea: 210 },
+        { name: '1" (28mm)', maxArea: 370 }, { name: '1-1/4" (35mm)', maxArea: 650 },
+        { name: '1-1/2" (41mm)', maxArea: 900 }, { name: '2" (52mm)', maxArea: 1450 },
+        { name: '2-1/2" (65mm)', maxArea: 2100 }, { name: '3" (80mm)', maxArea: 3200 },
+        { name: '3-1/2" (90mm)', maxArea: 4200 }, { name: '4" (100mm)', maxArea: 5300 },
+        { name: '5" (125mm)', maxArea: 8000 }, { name: '6" (150mm)', maxArea: 11500 }
+    ];
+
+    function switchTab(id) {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    function getWireOptions() {
+        if (!wireData || wireData.length === 0) return '<option disabled>資料載入中...</option>';
+        return wireData.map(w => `<option value="${w.size}">${w.label}</option>`).join('');
+    }
+
+    function addWireRow() {
+        const container = document.getElementById('wire-list-container');
+        if(!container) return;
+        const div = document.createElement('div');
+        div.className = 'wire-row';
+        div.innerHTML = `
+            <select class="conduit-wire-select">
+                <option value="" disabled selected>選擇主線徑...</option>
+                ${getWireOptions()}
+            </select>
+            <input type="number" class="conduit-wire-qty" placeholder="數量" value="3" min="0">
+            <button onclick="this.parentElement.remove()" style="border:none;background:none;color:#dc3545;cursor:pointer;font-weight:bold;">✕</button>
+        `;
+        container.appendChild(div);
+    }
+    
+    function addGroundRow() {
+        const container = document.getElementById('wire-list-container');
+        const div = document.createElement('div');
+        div.className = 'wire-row';
+        div.innerHTML = `
+            <select class="conduit-wire-select">
+                <option value="" disabled selected>選擇接地線...</option>
+                 ${getWireOptions()}
+            </select>
+            <input type="number" class="conduit-wire-qty" value="1" placeholder="數量">
+            <span style="font-size:0.8rem; color:#28a745; white-space:nowrap;">(接地)</span>
+            <button onclick="this.parentElement.remove()" style="border:none;background:none;color:#dc3545;cursor:pointer;font-weight:bold;">✕</button>
+        `;
+        container.appendChild(div);
+    }
+
+    // ==========================================
+    // 2. 核心計算邏輯
+    // ==========================================
+    function calculateWireSize() {
+        const breakerAt = parseFloat(document.getElementById('breaker-at').value);
+        const wireType = document.getElementById('wire-type').value; 
+        const installMethod = document.getElementById('install-method').value;
+        const voltage = parseFloat(document.getElementById('voltage').value);
+        const length = parseFloat(document.getElementById('wire-length').value);
+
+        if (!breakerAt) { alert("請輸入無熔絲開關容量 (AT)"); return; }
+
+        let selectedWire = null;
+        let finalVoltageDrop = 0;
+        let isUpsized = false;
+        let sets = 1; 
+
+        // --- 邏輯判斷：根據線種與配管，決定去哪個欄位查表 ---
+        // 1. 決定使用哪個數據集 (PVC 60度 或 XLPE 90度)
+        // PVC單芯(pvc_core), PVC電纜(pvc_cable) -> 使用 pvc_amps
+        // XLPE(xlpe), HR(hr), FR(fr) -> 使用 xlpe_amps
+        const useXlpeTable = ['xlpe', 'hr', 'fr'].includes(wireType);
+
+        // 2. 決定使用該數據集中的哪個欄位
+        // pvc_pipe -> pvc_pipe
+        // metal_pipe, trunking -> metal (線槽與金屬管散熱較接近，皆優於PVC管)
+        // tray -> tray
+        let ampColumn = 'metal'; // 預設
+        if (installMethod === 'pvc_pipe') ampColumn = 'pvc_pipe';
+        else if (installMethod === 'tray') ampColumn = 'tray';
+        else ampColumn = 'metal'; // metal_pipe or trunking
+
+        // --- 步驟 A: 嘗試單組計算 ---
+        let currentTarget = breakerAt;
+        let singleWireOption = findWireForCurrent(currentTarget, useXlpeTable, ampColumn);
+
+        // --- 步驟 B: 並聯判斷 (>200mm² 或 找不到線) ---
+        if (!singleWireOption || singleWireOption.size > 200) {
+            sets = 2; 
+            currentTarget = breakerAt / 2;
+            selectedWire = findWireForCurrent(currentTarget, useXlpeTable, ampColumn);
+            
+            if (!selectedWire) {
+                alert("即便使用雙組並聯，仍找不到合適線徑 (電流過大)，請諮詢技師。");
+                return;
+            }
+        } else {
+            selectedWire = singleWireOption;
+        }
+
+        // --- 步驟 C: 壓降檢查 ---
+        while (true) {
+            let resistance = selectedWire.R;
+            if (sets === 2) resistance = resistance / 2; 
+
+            let dropVal = (2 * length * breakerAt * resistance) / 1000;
+            let dropPercent = (dropVal / voltage) * 100;
+
+            if (dropPercent < 3.0) {
+                finalVoltageDrop = dropPercent;
+                break; 
+            } else {
+                let nextWire = getNextLargerWire(selectedWire.size);
+                if (nextWire) {
+                    selectedWire = nextWire;
+                    // 更新 capacity 供顯示用
+                    selectedWire.capacity = getWireCapacity(selectedWire, useXlpeTable, ampColumn);
+                    isUpsized = true;
+                } else {
+                    finalVoltageDrop = dropPercent; 
+                    break; 
+                }
+            }
+        }
+
+        // --- 接地線 ---
+        let groundWireSize = "請諮詢技師";
+        for (let g of groundingTable) {
+            if (g.breakerAt >= breakerAt) {
+                groundWireSize = g.groundSize;
+                break;
+            }
+        }
+        if (breakerAt > 800) groundWireSize = "需依計算公式 (800A以上)";
+
+        // --- 顯示結果 ---
+        const resCard = document.getElementById('wire-result');
+        resCard.style.display = 'block';
+
+        if (selectedWire) {
+            document.getElementById('res-main-wire').innerText = selectedWire.label;
+            
+            const setsElem = document.getElementById('res-wire-sets');
+            if (sets === 2) {
+                setsElem.innerText = "2 組並聯 (由系統自動拆分)";
+                setsElem.style.color = "#d35400";
+            } else {
+                setsElem.innerText = "1 組 (單迴路)";
+                setsElem.style.color = "#333";
+            }
+
+            document.getElementById('res-ground-wire').innerText = groundWireSize;
+            
+            const dropElem = document.getElementById('res-voltage-drop');
+            dropElem.innerText = finalVoltageDrop.toFixed(2) + '%';
+            dropElem.style.color = finalVoltageDrop > 2.5 ? '#d35400' : '#27ae60';
+
+            let totalCapacity = selectedWire.capacity * sets;
+            document.getElementById('res-amp-check').innerText = `AT ${breakerAt}A / 總耐流 ${totalCapacity}A (${selectedWire.capacity}x${sets})`;
+            
+            const msg = document.getElementById('upsize-msg');
+            msg.style.display = isUpsized ? 'block' : 'none';
+        }
+    }
+
+    // 輔助：讀取該線徑在特定條件下的電流值
+    function getWireCapacity(wire, useXlpeTable, ampColumn) {
+        if (useXlpeTable) return wire.xlpe_amps[ampColumn];
+        return wire.pvc_amps[ampColumn];
+    }
+
+    // 輔助：找線
+    function findWireForCurrent(targetAmps, useXlpeTable, ampColumn) {
+        for (let wire of wireData) {
+            let capacity = getWireCapacity(wire, useXlpeTable, ampColumn);
+            // 暫存 capacity
+            wire.capacity = capacity;
+            if (capacity >= targetAmps) {
+                return wire;
+            }
+        }
+        return null; 
+    }
+
+    function getNextLargerWire(currentSize) {
+        let index = wireData.findIndex(w => w.size === currentSize);
+        if (index !== -1 && index < wireData.length - 1) {
+            return wireData[index + 1];
+        }
+        return null;
+    }
+
+    // --- 管徑計算 ---
+    function calculateConduitSize() {
+        let totalArea = 0;
+        const rows = document.querySelectorAll('.wire-row');
+        
+        rows.forEach(row => {
+            const select = row.querySelector('select');
+            const input = row.querySelector('input');
+            const size = parseFloat(select.value);
+            const qty = parseFloat(input.value);
+            
+            if (size && qty) {
+                const wire = wireData.find(w => w.size === size);
+                if (wire) totalArea += wire.outer_area * qty;
+            }
+        });
+
+        if (totalArea === 0) { alert("請至少選擇一種電線"); return; }
+
+        let pvcResult = "需更大管徑";
+        let metalResult = "需更大管徑";
+
+        for (let pipe of pipeSpecs) {
+            if (pipe.maxArea >= totalArea) {
+                 if (pvcResult === "需更大管徑") pvcResult = pipe.name;
+                 if (metalResult === "需更大管徑") metalResult = pipe.name;
+                 break;
+            }
+        }
+
+        document.getElementById('conduit-result').style.display = 'block';
+        document.getElementById('res-total-area').innerText = totalArea.toFixed(1) + " mm²";
+        document.getElementById('res-pvc-pipe').innerText = pvcResult;
+        document.getElementById('res-metal-pipe').innerText = metalResult;
+    }
+
+    window.addEventListener('load', function() {
+        addWireRow(); 
+    });
+
+</script>
+
+</body>
+</html>
