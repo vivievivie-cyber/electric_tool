@@ -3,145 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>線徑與管徑規劃計算機</title>
+    <title>線徑與管徑規劃計算機 (Liquid)</title>
     <style>
-        /* --- 基礎設定 --- */
+        /* --- 全域設定 & 動態背景 --- */
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            --primary-color: #007AFF; /* Apple Blue */
+            --text-main: #1d1d1f;
+            --text-sub: #86868b;
+        }
+
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            margin: 0; padding: 15px; background-color: #f3f4f6; color: #333; 
-            padding-bottom: 80px;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; padding: 20px; 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh; color: var(--text-main);
+            overflow-x: hidden;
+            padding-bottom: 100px;
+        }
+
+        /* 動態流體背景球 */
+        .blob {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; overflow: hidden;
+        }
+        .blob div {
+            position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.6;
+            animation: float 10s infinite ease-in-out alternate;
+        }
+        .blob div:nth-child(1) { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #a1c4fd; }
+        .blob div:nth-child(2) { bottom: -10%; right: -10%; width: 60vw; height: 60vw; background: #c2e9fb; animation-delay: -5s; }
+        .blob div:nth-child(3) { top: 40%; left: 40%; width: 40vw; height: 40vw; background: #e0c3fc; animation-duration: 15s; }
+
+        @keyframes float { from { transform: translate(0, 0); } to { transform: translate(30px, 50px); } }
+
+        /* --- 標題 --- */
+        .header-container { text-align: center; margin-bottom: 30px; position: relative; z-index: 2; }
+        h1 { 
+            margin: 0; font-size: 1.8rem; font-weight: 700; 
+            background: linear-gradient(135deg, #007AFF, #00C6FB); 
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
         }
         
-        .header-container { display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
-        h1 { margin: 0; font-size: 1.4rem; color: #1565c0; } 
         .help-btn {
-            margin-left: 10px; background: #90a4ae; color: white; border: none; 
-            width: 24px; height: 24px; border-radius: 50%; font-weight: bold; cursor: pointer;
+            background: rgba(255,255,255,0.8); border: 1px solid #fff; 
+            width: 28px; height: 28px; border-radius: 50%; 
+            color: #007AFF; font-weight: bold; cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: absolute; right: 10px; top: 5px;
+            display: flex; align-items: center; justify-content: center;
         }
 
-        .card {
-            background: white; padding: 20px; border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 15px;
-            border: 1px solid #bbdefb;
+        /* --- 液態玻璃卡片 (Glassmorphism) --- */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 25px;
+            box-shadow: var(--glass-shadow);
+            margin-bottom: 25px;
+            position: relative; z-index: 2;
+            transition: transform 0.3s ease;
         }
 
-        .input-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.95rem; color: #0d47a1; }
+        /* --- 輸入元件設計 --- */
+        .input-group { margin-bottom: 18px; }
+        label { 
+            display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: var(--text-sub); 
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
 
         select, input[type="number"] { 
-            width: 100%; padding: 12px; border: 1px solid #90caf9; border-radius: 8px; 
-            font-size: 16px; background: #fff; box-sizing: border-box; appearance: none;
+            width: 100%; padding: 14px; 
+            border: 1px solid rgba(255,255,255,0.6); 
+            border-radius: 16px;
+            font-size: 17px; 
+            background: rgba(255, 255, 255, 0.4);
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.03), 0 5px 10px rgba(0,0,0,0.02);
+            color: #333; box-sizing: border-box; appearance: none;
+            transition: all 0.3s ease;
         }
-        select:focus, input:focus { border-color: #1565c0; outline: none; box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.1); }
+        select:focus, input:focus { 
+            outline: none; border-color: #007AFF; background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+        }
 
-        /* 結果區塊 */
-        .result-section {
-            background-color: #e3f2fd; border: 2px solid #64b5f6;
-            border-radius: 8px; padding: 15px; margin-top: 20px; display: none;
+        /* --- 按鈕設計 --- */
+        .btn { 
+            display: block; width: 100%; padding: 16px; border: none; border-radius: 18px; 
+            font-size: 1.1rem; font-weight: 600; cursor: pointer; color: white; margin-top: 10px;
+            background: linear-gradient(135deg, #007AFF, #005ecb);
+            box-shadow: 0 8px 20px rgba(0, 122, 255, 0.3);
+            transition: all 0.2s ease;
         }
-        .res-block { border-bottom: 1px dashed #90caf9; padding-bottom: 15px; margin-bottom: 15px; }
+        .btn:active { transform: scale(0.98); box-shadow: 0 4px 10px rgba(0, 122, 255, 0.2); }
+
+        /* --- 結果區塊 --- */
+        .result-section { display: none; animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .res-block { 
+            border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 20px; margin-bottom: 20px; 
+        }
         .res-block:last-child { border-bottom: none; margin-bottom: 0; }
         
-        .res-title { font-size: 0.9rem; color: #1565c0; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;}
-        .res-value { font-size: 1.5rem; font-weight: bold; color: #0d47a1; margin-bottom: 5px; }
-        .res-detail { font-size: 0.9rem; color: #555; line-height: 1.5; }
-        .tag-parallel { display: inline-block; background: #ff9800; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; margin-bottom: 5px;}
-
-        .btn { 
-            display: block; width: 100%; padding: 14px; border: none; border-radius: 8px; 
-            font-size: 1rem; font-weight: bold; cursor: pointer; color: white; margin-top: 15px;
+        .res-title { font-size: 0.85rem; color: #86868b; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; }
+        .res-value { 
+            font-size: 1.8rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; 
+            background: linear-gradient(90deg, #1d1d1f, #434343); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .btn-calc { background-color: #1565c0; }
-        .btn-calc:active { background-color: #0d47a1; transform: translateY(1px); }
+        .res-detail { font-size: 0.95rem; color: #515154; line-height: 1.6; }
+        
+        .tag { 
+            display: inline-block; padding: 4px 10px; border-radius: 20px; 
+            font-size: 0.75rem; font-weight: bold; margin-left: 8px; vertical-align: middle;
+            color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .tag-auto { background: linear-gradient(135deg, #FF9500, #FF5E3A); }
+        .tag-manual { background: linear-gradient(135deg, #34C759, #30B34A); }
 
-        /* Modal */
+        /* --- Modal --- */
         .modal {
             display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center;
+            background-color: rgba(0,0,0,0.4); backdrop-filter: blur(5px);
+            align-items: center; justify-content: center;
         }
         .modal-content {
-            background-color: #fff; margin: 20px; padding: 20px; border-radius: 12px;
+            background: #fff; margin: 20px; padding: 30px; border-radius: 24px;
             width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
         }
-        .close-modal { position: absolute; top: 10px; right: 15px; color: #aaa; font-size: 28px; cursor: pointer; }
-        h2 { border-bottom: 2px solid #1565c0; padding-bottom: 10px; font-size: 1.2rem; margin-top:0; color:#333;}
+        .close-modal { position: absolute; top: 15px; right: 20px; color: #aaa; font-size: 28px; cursor: pointer; }
+        h2 { margin-top: 0; color: #1d1d1f; border-bottom: 2px solid #f5f5f7; padding-bottom: 15px; }
+        
+        /* Highlight text */
+        .highlight { color: #007AFF; font-weight: bold; }
     </style>
 </head>
 <body>
 
+    <div class="blob">
+        <div></div><div></div><div></div>
+    </div>
+
     <div class="header-container">
-        <h1>⚡ 線徑與管徑規劃計算機</h1>
+        <h1>線徑與管徑規劃計算機</h1>
         <button class="help-btn" onclick="openModal()">?</button>
     </div>
 
-    <div class="card">
+    <div class="glass-card">
         <div class="input-group">
             <label>1. 無熔絲開關 (NFB AT)</label>
-            <input type="number" id="nfbValue" placeholder="對照圖卡數值 (如 200, 800)" inputmode="decimal">
+            <input type="number" id="nfbValue" placeholder="輸入 AT 值 (如 50, 400)" inputmode="decimal">
         </div>
 
         <div class="input-group">
-            <label>2. 電線安全係數 (倍數)</label>
-            <input type="number" id="safetyFactor" value="1.0" step="0.05" placeholder="如 1.0, 1.25">
-            <div style="font-size:0.8rem; color:#666; margin-top:5px;">
-                * 預設 1.0 (直接查表)，若需寬裕度可輸入 1.1 等。
-            </div>
+            <label>2. 電線安全係數</label>
+            <input type="number" id="safetyFactor" value="1.2" step="0.05" placeholder="正常為 1.2">
         </div>
 
         <div class="input-group">
-            <label>3. 絕緣導線種類</label>
+            <label>3. 迴路配置方式</label>
+            <select id="circuitConfig">
+                <option value="auto">✨ 自動計算 (限制單線 < 200mm²)</option>
+                <option value="1">1 迴路 (強制)</option>
+                <option value="2">2 迴路 (強制)</option>
+                <option value="3">3 迴路 (強制)</option>
+                <option value="4">4 迴路 (強制)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label>4. 絕緣導線種類</label>
             <select id="wireType">
-                <option value="xlpe">PEX/XLPE 電纜 (CV)</option>
-                <option value="pvc_wire">PVC 電線 (IV)</option>
-                <option value="pvc_cable">PVC 電纜 (VV)</option>
+                <option value="xlpe">XLPE 電纜 (PEX/CV) - 90°C</option>
+                <option value="pvc_wire">PVC 電線 (IV) - 60°C</option>
+                <option value="pvc_cable">PVC 電纜 (VV) - 60°C</option>
             </select>
         </div>
         
         <div class="input-group">
-            <label>4. 配置容器類型</label>
-            <select id="containerType" onchange="updateHint()">
-                <option value="conduit_emt">導線管 - EMT 金屬管</option>
-                <option value="conduit_pvc">導線管 - PVC 塑膠管</option>
-                <option value="conduit_rsc">導線管 - RSG 厚金屬管</option>
-                <option value="tray">金屬線槽 (Wireway)</option>
-            </select>
-            <div id="containerHint" style="font-size:0.8rem; color:#1565c0; margin-top:5px; font-weight:bold;">
-                目前設定：導線管 (填充率 40%)
+            <label>5. 容器與導線數</label>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <select id="containerType" onchange="updateHint()">
+                    <option value="conduit_emt">導線管 (EMT)</option>
+                    <option value="conduit_pvc">導線管 (PVC)</option>
+                    <option value="conduit_rsc">導線管 (RSG)</option>
+                    <option value="tray">金屬線槽</option>
+                </select>
+                <select id="wireCountSelect">
+                    <option value="3">3 條 (不含G)</option>
+                    <option value="4">4 條 (不含G)</option>
+                </select>
+            </div>
+            <div id="containerHint" style="font-size:0.8rem; color:#666; margin-top:5px; text-align:right;">
+                填充率 40%
             </div>
         </div>
 
-        <div class="input-group">
-            <label>5. 管內導線數 (不含接地)</label>
-            <select id="wireCountSelect">
-                <option value="3">3 條 (對照圖卡第1欄)</option>
-                <option value="4">4 條 (對照圖卡第2欄)</option>
-            </select>
-            <div style="font-size:0.8rem; color:#d84315; margin-top:5px;">
-                * 依據圖卡與法規查表。
-            </div>
-        </div>
-
-        <button class="btn btn-calc" onclick="calculate()">🚀 自動計算</button>
+        <button class="btn" onclick="calculate()">自動計算</button>
     </div>
 
-    <div id="resultArea" class="result-section">
+    <div id="resultArea" class="result-section glass-card">
         
         <div class="res-block">
-            <div class="res-title">步驟一：主線徑 (查表)</div>
-            <div id="parallelTag" class="tag-parallel" style="display:none;">多迴路併聯</div>
-            <div class="res-value" id="resWireSize">---</div>
+            <div class="res-title">步驟一：建議主線徑 (R/S/T/N)</div>
+            <div style="display:flex; align-items:center;">
+                <div class="res-value" id="resWireSize">---</div>
+                <div id="configTag"></div>
+            </div>
             <div class="res-detail">
-                <div>NFB：<span id="resNFB">0</span> AT</div>
-                <div>每路負擔：<span id="resCurrentPerSet" style="color:#009688; font-weight:bold;">0</span> A</div>
-                <div>查表容量：<span id="resWireCap">0</span> A (<span id="resWireConfigInfo"></span>)</div>
+                <div>目標總容量：<span id="resTargetTotal" class="highlight">0</span> A <span style="font-size:0.8em;color:#888;">(含1.2倍係數)</span></div>
+                <div>查表結果：<span id="resCalcDetailLine"></span></div>
             </div>
         </div>
 
         <div class="res-block">
             <div class="res-title">步驟二：銅接地線 (G)</div>
-            <div class="res-value" id="resGroundSize" style="color:#2e7d32;">---</div>
+            <div class="res-value" id="resGroundSize" style="color:#34C759; -webkit-text-fill-color: #34C759;">---</div>
             <div class="res-detail">
-                <div>依據：圖卡右側對照表 (表 26-2)</div>
+                <div>依據：圖卡對照表 (NFB <span id="resNFBDisplay">0</span>A)</div>
             </div>
         </div>
 
@@ -149,12 +234,13 @@
             <div class="res-title">步驟三：建議容器配置</div>
             <div class="res-value" id="resContainerSize">---</div>
             <div class="res-detail">
-                <div id="resPipeNote" style="display:none; color:#d84315; font-weight:bold; margin-bottom:5px;">
-                    * 建議配置 <span id="resPipeCount">1</span> 支管 (每管一迴路)
+                <div id="resPipeNote" style="display:none; color:#FF9500; font-weight:bold; margin-bottom:5px;">
+                    💡 建議配置 <span id="resPipeCount">1</span> 支管 (每管一迴路)
                 </div>
-                <div>總截面積：<span id="resTotalArea">0</span> mm²</div>
-                <div>法規上限：<span id="resLimitInfo" style="font-weight:bold; color:#1565c0;"></span></div>
-                <div>實際填充率：<span id="resFillRate">0%</span></div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span>總截面積：<span id="resTotalArea">0</span> mm²</span>
+                    <span>填充率：<span id="resFillRate" class="highlight">0%</span></span>
+                </div>
             </div>
         </div>
     </div>
@@ -162,121 +248,73 @@
     <div id="helpModal" class="modal" onclick="closeModal(event)">
         <div class="modal-content">
             <span class="close-modal" onclick="document.getElementById('helpModal').style.display='none'">&times;</span>
-            <h2>📖 數據與規則說明</h2>
-            
-            <h4>1. 資料庫依據</h4>
+            <h2>設定說明</h2>
+            <p><strong>1. 安全係數：</strong><br>預設 <strong>1.2 倍</strong> (NFB x 1.2)。可依需求手動調整。</p>
+            <p><strong>2. 迴路配置：</strong></p>
             <ul>
-                <li><strong>PVC 電線/電纜：</strong> 依照您提供的現場速查圖卡數據。</li>
-                <li><strong>XLPE 電纜 (PEX)：</strong> 8mm² 以上依照圖卡；2.0/3.5/5.5mm² 依照電工法規標準補充。</li>
+                <li><strong>自動：</strong> 優先選 1 迴路，若線徑 > 200mm² 則自動拆分為多迴路。</li>
+                <li><strong>強制指定：</strong> 強制計算您選擇的迴路數，即使線徑極大或極小。</li>
             </ul>
-
-            <h4>2. 查表邏輯</h4>
-            <p>直接依據「3條」或「4條」讀取對應安培數。4條之數據已包含法規折減。</p>
-
-            <h4>3. 分路原則</h4>
-            <p>單一迴路線徑限制 <strong>200mm²</strong> 以下。超過則自動拆分為多迴路。</p>
-
+            <p><strong>3. 數據依據：</strong><br>採用現場速查圖卡數據 (3條/4條不折減) 與 表26-2 接地線。</p>
             <div style="text-align:center; margin-top:20px;">
-                <button onclick="document.getElementById('helpModal').style.display='none'" style="padding:10px 30px; border:none; background:#1565c0; color:white; border-radius:6px; cursor:pointer;">我瞭解了</button>
+                <button onclick="document.getElementById('helpModal').style.display='none'" class="btn" style="width:auto; padding:10px 30px;">關閉</button>
             </div>
         </div>
     </div>
 
     <script>
-        // --- 1. 接地線資料庫 (完全依照圖卡右側) ---
+        // 資料庫：接地線
         const db_ground_image = [
-            { limit: 20,   s: "1.6mm", area: 12.6 },
-            { limit: 30,   s: "2.0mm", area: 12.6 },
-            { limit: 60,   s: "5.5mm²", area: 28.3 },
-            { limit: 100,  s: "8mm²",   area: 44.2 },
-            { limit: 200,  s: "14mm²",  area: 63.6 },
-            { limit: 400,  s: "22mm²",  area: 95.0 },
-            { limit: 600,  s: "38mm²",  area: 147 },
-            { limit: 800,  s: "50mm²",  area: 184 },
-            { limit: 1000, s: "60mm²",  area: 219 },
-            { limit: 1200, s: "80mm²",  area: 275 },
-            { limit: 1600, s: "100mm²", area: 340 },
-            { limit: 2000, s: "125mm²", area: 415 },
-            { limit: 2500, s: "175mm²", area: 550 },
-            { limit: 3000, s: "200mm²", area: 615 },
-            { limit: 4000, s: "250mm²", area: 755 },
-            { limit: 5000, s: "350mm²", area: 1050 },
+            { limit: 20,   s: "1.6mm", area: 12.6 }, { limit: 30,   s: "2.0mm", area: 12.6 },
+            { limit: 60,   s: "5.5mm²", area: 28.3 }, { limit: 100,  s: "8mm²",   area: 44.2 },
+            { limit: 200,  s: "14mm²",  area: 63.6 }, { limit: 400,  s: "22mm²",  area: 95.0 },
+            { limit: 600,  s: "38mm²",  area: 147 }, { limit: 800,  s: "50mm²",  area: 184 },
+            { limit: 1000, s: "60mm²",  area: 219 }, { limit: 1200, s: "80mm²",  area: 275 },
+            { limit: 1600, s: "100mm²", area: 340 }, { limit: 2000, s: "125mm²", area: 415 },
+            { limit: 2500, s: "175mm²", area: 550 }, { limit: 3000, s: "200mm²", area: 615 },
+            { limit: 4000, s: "250mm²", area: 755 }, { limit: 5000, s: "350mm²", area: 1050 },
             { limit: 6000, s: "400mm²", area: 1200 }
         ];
 
-        // --- 2. 主線資料庫 ---
-        // s: 規格
-        // v3: 3條容量
-        // v4: 4條容量
-        // a: 外徑面積 (算管徑用)
-        // n: 數值大小 (算200限制用)
-
+        // 資料庫：主線 (v3:3條容量, v4:4條容量, n:數值大小)
         const db_pvc_wire_img = [
-            { s: "1.6mm", v3: 15, v4: 15, a: 10.2, n: 2 },
-            { s: "2.0mm", v3: 20, v4: 20, a: 12.6, n: 3.5 }, 
-            { s: "2mm²",  v3: 15, v4: 15, a: 15.0, n: 2 },
-            { s: "3.5mm²", v3: 20, v4: 20, a: 19.6, n: 3.5 },
-            { s: "5.5mm²", v3: 30, v4: 28, a: 28.3, n: 5.5 },
-            { s: "8mm²",   v3: 40, v4: 35, a: 44.2, n: 8 },
-            { s: "14mm²",  v3: 55, v4: 50, a: 63.6, n: 14 },
-            { s: "22mm²",  v3: 70, v4: 65, a: 95.0, n: 22 },
-            { s: "30mm²",  v3: 90, v4: 80, a: 123, n: 30 },
-            { s: "38mm²",  v3: 100, v4: 90, a: 147, n: 38 },
-            { s: "50mm²",  v3: 120, v4: 110, a: 184, n: 50 },
-            { s: "60mm²",  v3: 140, v4: 125, a: 219, n: 60 },
-            { s: "80mm²",  v3: 165, v4: 145, a: 275, n: 80 },
-            { s: "100mm²", v3: 190, v4: 170, a: 340, n: 100 },
-            { s: "125mm²", v3: 220, v4: 200, a: 415, n: 125 },
-            { s: "150mm²", v3: 250, v4: 225, a: 483, n: 150 },
-            { s: "200mm²", v3: 300, v4: 270, a: 615, n: 200 },
-            { s: "250mm²", v3: 355, v4: 315, a: 755, n: 250 },
-            { s: "325mm²", v3: 415, v4: 370, a: 962, n: 325 }
+            { s: "1.6mm", v3: 15, v4: 15, a: 10.2, n: 2 }, { s: "2.0mm", v3: 20, v4: 20, a: 12.6, n: 3.5 }, 
+            { s: "3.5mm²", v3: 20, v4: 20, a: 19.6, n: 3.5 }, { s: "5.5mm²", v3: 30, v4: 28, a: 28.3, n: 5.5 },
+            { s: "8mm²",   v3: 40, v4: 35, a: 44.2, n: 8 }, { s: "14mm²",  v3: 55, v4: 50, a: 63.6, n: 14 },
+            { s: "22mm²",  v3: 70, v4: 65, a: 95.0, n: 22 }, { s: "30mm²",  v3: 90, v4: 80, a: 123, n: 30 },
+            { s: "38mm²",  v3: 100, v4: 90, a: 147, n: 38 }, { s: "50mm²",  v3: 120, v4: 110, a: 184, n: 50 },
+            { s: "60mm²",  v3: 140, v4: 125, a: 219, n: 60 }, { s: "80mm²",  v3: 165, v4: 145, a: 275, n: 80 },
+            { s: "100mm²", v3: 190, v4: 170, a: 340, n: 100 }, { s: "125mm²", v3: 220, v4: 200, a: 415, n: 125 },
+            { s: "150mm²", v3: 250, v4: 225, a: 483, n: 150 }, { s: "200mm²", v3: 300, v4: 270, a: 615, n: 200 },
+            { s: "250mm²", v3: 355, v4: 315, a: 755, n: 250 }, { s: "325mm²", v3: 415, v4: 370, a: 962, n: 325 }
         ];
 
         const db_pvc_cable_img = [
-            { s: "1.6mm", v3: 15, v4: 13, a: 35, n: 2 },
-            { s: "2.0mm", v3: 19, v4: 16, a: 35, n: 3.5 },
-            { s: "3.5mm²", v3: 19, v4: 16, a: 42, n: 3.5 },
-            { s: "5.5mm²", v3: 25, v4: 23, a: 55, n: 5.5 },
-            { s: "8mm²",   v3: 33, v4: 30, a: 70, n: 8 },
-            { s: "14mm²",  v3: 50, v4: 40, a: 100, n: 14 },
-            { s: "22mm²",  v3: 60, v4: 55, a: 150, n: 22 },
-            { s: "30mm²",  v3: 75, v4: 65, a: 200, n: 30 },
-            { s: "38mm²",  v3: 85, v4: 75, a: 230, n: 38 },
-            { s: "50mm²",  v3: 100, v4: 90, a: 300, n: 50 },
-            { s: "60mm²",  v3: 115, v4: 105, a: 360, n: 60 },
-            { s: "80mm²",  v3: 140, v4: 125, a: 450, n: 80 },
-            { s: "100mm²", v3: 160, v4: 150, a: 560, n: 100 },
-            { s: "125mm²", v3: 185, v4: 165, a: 650, n: 125 },
-            { s: "150mm²", v3: 215, v4: 190, a: 750, n: 150 },
-            { s: "200mm²", v3: 255, v4: 225, a: 900, n: 200 },
-            { s: "250mm²", v3: 300, v4: 265, a: 1100, n: 250 },
-            { s: "325mm²", v3: 355, v4: 310, a: 1350, n: 325 }
+            { s: "1.6mm", v3: 15, v4: 13, a: 35, n: 2 }, { s: "2.0mm", v3: 19, v4: 16, a: 35, n: 3.5 },
+            { s: "3.5mm²", v3: 19, v4: 16, a: 42, n: 3.5 }, { s: "5.5mm²", v3: 25, v4: 23, a: 55, n: 5.5 },
+            { s: "8mm²",   v3: 33, v4: 30, a: 70, n: 8 }, { s: "14mm²",  v3: 50, v4: 40, a: 100, n: 14 },
+            { s: "22mm²",  v3: 60, v4: 55, a: 150, n: 22 }, { s: "30mm²",  v3: 75, v4: 65, a: 200, n: 30 },
+            { s: "38mm²",  v3: 85, v4: 75, a: 230, n: 38 }, { s: "50mm²",  v3: 100, v4: 90, a: 300, n: 50 },
+            { s: "60mm²",  v3: 115, v4: 105, a: 360, n: 60 }, { s: "80mm²",  v3: 140, v4: 125, a: 450, n: 80 },
+            { s: "100mm²", v3: 160, v4: 150, a: 560, n: 100 }, { s: "125mm²", v3: 185, v4: 165, a: 650, n: 125 },
+            { s: "150mm²", v3: 215, v4: 190, a: 750, n: 150 }, { s: "200mm²", v3: 255, v4: 225, a: 900, n: 200 },
+            { s: "250mm²", v3: 300, v4: 265, a: 1100, n: 250 }, { s: "325mm²", v3: 355, v4: 310, a: 1350, n: 325 }
         ];
 
-        const db_pex_img = [ // PEX = XLPE (含補回的小線徑)
-            { s: "2.0mm²", v3: 25, v4: 20, a: 21.2, n: 2 }, // 補回
-            { s: "3.5mm²", v3: 30, v4: 24, a: 26.4, n: 3.5 }, // 補回
-            { s: "5.5mm²", v3: 40, v4: 32, a: 36.3, n: 5.5 }, // 補回
-            { s: "8mm²",   v3: 55, v4: 48, a: 47.8, n: 8 },
-            { s: "14mm²",  v3: 75, v4: 70, a: 67.9, n: 14 },
-            { s: "22mm²",  v3: 100, v4: 90, a: 98.5, n: 22 },
-            { s: "30mm²",  v3: 125, v4: 110, a: 127, n: 30 },
-            { s: "38mm²",  v3: 145, v4: 130, a: 154, n: 38 },
-            { s: "50mm²",  v3: 170, v4: 150, a: 191, n: 50 },
-            { s: "60mm²",  v3: 195, v4: 175, a: 227, n: 60 },
-            { s: "80mm²",  v3: 230, v4: 205, a: 284, n: 80 },
-            { s: "100mm²", v3: 265, v4: 240, a: 350, n: 100 },
-            { s: "125mm²", v3: 310, v4: 275, a: 423, n: 125 },
-            { s: "150mm²", v3: 355, v4: 315, a: 491, n: 150 },
-            { s: "200mm²", v3: 420, v4: 380, a: 625, n: 200 },
-            { s: "250mm²", v3: 500, v4: 450, a: 765, n: 250 },
-            { s: "325mm²", v3: 580, v4: 525, a: 973, n: 325 },
-            { s: "400mm²", v3: 670, v4: 600, a: 1150, n: 400 },
+        const db_pex_img = [
+            { s: "2.0mm²", v3: 25, v4: 20, a: 21.2, n: 2 }, { s: "3.5mm²", v3: 30, v4: 24, a: 26.4, n: 3.5 },
+            { s: "5.5mm²", v3: 40, v4: 32, a: 36.3, n: 5.5 }, { s: "8mm²",   v3: 55, v4: 48, a: 47.8, n: 8 },
+            { s: "14mm²",  v3: 75, v4: 70, a: 67.9, n: 14 }, { s: "22mm²",  v3: 100, v4: 90, a: 98.5, n: 22 },
+            { s: "30mm²",  v3: 125, v4: 110, a: 127, n: 30 }, { s: "38mm²",  v3: 145, v4: 130, a: 154, n: 38 },
+            { s: "50mm²",  v3: 170, v4: 150, a: 191, n: 50 }, { s: "60mm²",  v3: 195, v4: 175, a: 227, n: 60 },
+            { s: "80mm²",  v3: 230, v4: 205, a: 284, n: 80 }, { s: "100mm²", v3: 265, v4: 240, a: 350, n: 100 },
+            { s: "125mm²", v3: 310, v4: 275, a: 423, n: 125 }, { s: "150mm²", v3: 355, v4: 315, a: 491, n: 150 },
+            { s: "200mm²", v3: 420, v4: 380, a: 625, n: 200 }, { s: "250mm²", v3: 500, v4: 450, a: 765, n: 250 },
+            { s: "325mm²", v3: 580, v4: 525, a: 973, n: 325 }, { s: "400mm²", v3: 670, v4: 600, a: 1150, n: 400 },
             { s: "500mm²", v3: 755, v4: 680, a: 1400, n: 500 }
         ];
 
-        // 容器資料庫 (通用)
+        // 容器資料庫
         const pipe_emt = [ 
             { name: "E19 (3/4\")",  area: 286 }, { name: "E25 (1\")",    area: 506 },
             { name: "E31 (1-1/4\")", area: 872 }, { name: "E39 (1-1/2\")", area: 1195 },
@@ -304,23 +342,21 @@
         function updateHint() {
             const type = document.getElementById('containerType').value;
             const hint = document.getElementById('containerHint');
-            if(type === 'tray') {
-                hint.innerText = "目前設定：線槽 (填充率 20%)";
-            } else {
-                hint.innerText = "目前設定：導線管 (填充率 40%)";
-            }
+            if(type === 'tray') hint.innerText = "填充率 20%";
+            else hint.innerText = "填充率 40%";
         }
 
         function calculate() {
             const nfbAT = parseFloat(document.getElementById('nfbValue').value);
-            const userSafety = parseFloat(document.getElementById('safetyFactor').value) || 1.0;
+            const userSafety = parseFloat(document.getElementById('safetyFactor').value) || 1.2;
+            const circuitConfig = document.getElementById('circuitConfig').value;
             const wireType = document.getElementById('wireType').value;
             const containerType = document.getElementById('containerType').value;
             const wireCountSel = document.getElementById('wireCountSelect').value;
 
             if (!nfbAT || nfbAT <= 0) { alert("請輸入 NFB AT 值"); return; }
 
-            // 1. 選擇資料庫
+            // 1. DB
             let db = null;
             if (wireType === 'pvc_wire') db = db_pvc_wire_img;
             else if (wireType === 'pvc_cable') db = db_pvc_cable_img;
@@ -329,17 +365,22 @@
             const isFourWire = (wireCountSel === "4");
             const configText = isFourWire ? "管內4條" : "管內3條";
 
-            // 2. 自動分路 Loop
+            // 2. 決定迴路邏輯
             let bestSet = null;
+            let startSet = 1, endSet = 10;
 
-            for (let sets = 1; sets <= 10; sets++) {
+            if (circuitConfig !== 'auto') {
+                startSet = parseInt(circuitConfig);
+                endSet = parseInt(circuitConfig); // 強制只算該迴路數
+            }
+
+            // 3. Loop
+            for (let sets = startSet; sets <= endSet; sets++) {
                 
                 let requiredAmp = (nfbAT * userSafety) / sets;
-
-                // 找線
                 let found = null;
+
                 for (let w of db) {
-                    // 查表
                     let capacity = isFourWire ? w.v4 : w.v3;
                     if (capacity >= requiredAmp) {
                         found = w;
@@ -347,53 +388,55 @@
                     }
                 }
 
-                // 200mm2 限制
-                if (found) {
-                    if (found.n <= 200) {
+                if (circuitConfig === 'auto') {
+                    // 自動模式：需符合 < 200mm2
+                    if (found && found.n <= 200) {
                         bestSet = { sets: sets, wire: found, capacity: (isFourWire ? found.v4 : found.v3) };
                         break; 
-                    } else {
-                        continue;
+                    }
+                } else {
+                    // 強制模式：只要找到就回傳 (即使很大或超出200)
+                    if (found) {
+                        bestSet = { sets: sets, wire: found, capacity: (isFourWire ? found.v4 : found.v3) };
+                        break; 
                     }
                 }
             }
 
-            // 3. 接地線 (依總 NFB 查圖卡)
+            // 接地
             let foundGround = null;
             for (let g of db_ground_image) {
                 if (g.limit >= nfbAT) { foundGround = g; break; }
             }
             if(!foundGround && nfbAT > 0) foundGround = db_ground_image[db_ground_image.length-1];
 
-
-            // 4. 顯示結果
+            // 顯示
             document.getElementById('resultArea').style.display = 'block';
-            document.getElementById('resNFB').innerText = nfbAT;
+            document.getElementById('resNFBDisplay').innerText = nfbAT;
+
+            const configTag = document.getElementById('configTag');
+            configTag.innerHTML = circuitConfig === 'auto' ? 
+                '<span class="tag tag-auto">自動</span>' : 
+                '<span class="tag tag-manual">指定</span>';
 
             if (bestSet) {
                 const sets = bestSet.sets;
                 const wire = bestSet.wire;
                 
-                document.getElementById('resCurrentPerSet').innerText = (nfbAT / sets).toFixed(1);
-                document.getElementById('resWireCap').innerText = bestSet.capacity;
-                document.getElementById('resWireConfigInfo').innerText = configText;
+                document.getElementById('resTargetTotal').innerText = (nfbAT * userSafety).toFixed(1);
+                document.getElementById('resCalcDetailLine').innerText = 
+                    `${sets}迴路 x ${bestSet.capacity}A = ${(bestSet.capacity * sets).toFixed(1)}A`;
 
                 if (sets > 1) {
-                    document.getElementById('resWireSize').innerText = `${sets} 迴路 x ${wire.s}`;
-                    document.getElementById('parallelTag').style.display = "inline-block";
+                    document.getElementById('resWireSize').innerText = `${sets} 組 x ${wire.s}`;
                 } else {
                     document.getElementById('resWireSize').innerText = wire.s;
-                    document.getElementById('parallelTag').style.display = "none";
                 }
 
-                // 接地
-                if (foundGround) {
-                    document.getElementById('resGroundSize').innerText = foundGround.s;
-                } else {
-                    document.getElementById('resGroundSize').innerText = "無 (NFB過大或未定義)";
-                }
+                if (foundGround) document.getElementById('resGroundSize').innerText = foundGround.s;
+                else document.getElementById('resGroundSize').innerText = "無";
 
-                // 5. 計算容器
+                // 容器
                 let mainCountPerSet = parseInt(wireCountSel); 
                 let totalArea = (wire.a * mainCountPerSet * sets);
                 if (foundGround) totalArea += foundGround.area;
@@ -412,7 +455,6 @@
                     else containerDB = pipe_rsc;
 
                     if (sets > 1) {
-                        // 分管
                         let singlePipeArea = (wire.a * mainCountPerSet);
                         if(foundGround) singlePipeArea += foundGround.area; 
                         areaForCheck = singlePipeArea;
@@ -429,7 +471,6 @@
                 }
 
                 document.getElementById('resTotalArea').innerText = totalArea.toFixed(1);
-                document.getElementById('resLimitInfo').innerText = isTray ? "20%" : "40%";
 
                 if (foundContainer) {
                     document.getElementById('resContainerSize').innerText = foundContainer.name;
@@ -437,10 +478,11 @@
                     document.getElementById('resFillRate').innerText = `${realRate.toFixed(1)}%`;
                 } else {
                     document.getElementById('resContainerSize').innerText = "超出規格";
+                    document.getElementById('resFillRate').innerText = "-";
                 }
 
             } else {
-                document.getElementById('resWireSize').innerText = "無適合線徑 (負載過大)";
+                document.getElementById('resWireSize').innerText = "無適合線徑";
                 document.getElementById('resContainerSize').innerText = "-";
             }
         }
